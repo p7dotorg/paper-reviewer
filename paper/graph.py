@@ -1,7 +1,7 @@
 """LangGraph graph — STORM-enhanced adversarial paper reviewer."""
 import operator
 from typing import Annotated, Optional
-from typing_extensions import TypedDict
+from typing_extensions import TypedDict, NotRequired
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -22,6 +22,11 @@ class ReviewState(TypedDict):
     contradiction_map: Optional[ContradictionMap]
     blind_spots: Optional[BlindSpot]
     verdict: Optional[Verdict]
+
+
+class ReviewConfig(TypedDict, total=False):
+    openrouter_api_key: str   # BYOK — overrides OPENROUTER_API_KEY env var
+    paper7_api_url: str       # optional: p7web API for find_related_papers
 
 
 class ReviewerInput(TypedDict):
@@ -52,7 +57,7 @@ def route_to_reviewers(state: ReviewState) -> list[Send]:
     return sends
 
 
-builder = StateGraph(ReviewState)
+builder = StateGraph(ReviewState, config_schema=ReviewConfig)
 builder.add_node("classify", classify)
 builder.add_node("reviewer", reviewer)
 builder.add_node("figure_reviewer", figure_reviewer)

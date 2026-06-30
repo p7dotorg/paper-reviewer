@@ -2,13 +2,14 @@
 from collections import Counter
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 
 from paper.nodes_helpers import make_model
 from paper.prompts import CONTRADICTION_MAP_PROMPT, BLIND_SPOT_PROMPT
 from paper.schemas import Finding, Verdict, ContradictionMap, BlindSpot
 
 
-def contradiction_map(state):
+def contradiction_map(state, config: RunnableConfig = None):
     findings = state["findings"]
     clf = state["classification"]
     findings_text = "\n\n".join(
@@ -16,7 +17,7 @@ def contradiction_map(state):
         f"Issue: {f.issue}\nEvidence: {f.evidence}"
         for f in findings
     )
-    model = make_model("SYNTHESIZE_MODEL", "openai/gpt-4o-mini", ContradictionMap, max_tokens=3000)
+    model = make_model("SYNTHESIZE_MODEL", "deepseek/deepseek-v4-flash", ContradictionMap, max_tokens=3000, config=config)
     result = model.invoke([
         SystemMessage(content=CONTRADICTION_MAP_PROMPT),
         HumanMessage(content=f"Paper: {clf.area} — {clf.paper_type}\n\nFindings:\n\n{findings_text}"),
@@ -32,11 +33,11 @@ def contradiction_map(state):
     return {"contradiction_map": result}
 
 
-def blind_spot(state):
+def blind_spot(state, config: RunnableConfig = None):
     findings = state["findings"]
     clf = state["classification"]
     covered = "\n".join(f"- [{f.persona}/{f.dimension}] {f.issue[:80]}" for f in findings)
-    model = make_model("SYNTHESIZE_MODEL", "openai/gpt-4o-mini", BlindSpot, max_tokens=1500)
+    model = make_model("SYNTHESIZE_MODEL", "deepseek/deepseek-v4-flash", BlindSpot, max_tokens=1500, config=config)
     result = model.invoke([
         SystemMessage(content=BLIND_SPOT_PROMPT.format(area=clf.area, paper_type=clf.paper_type)),
         HumanMessage(content=f"Claims: {'; '.join(clf.claims)}\n\nCobertos:\n{covered}"),
@@ -46,7 +47,7 @@ def blind_spot(state):
     return {"blind_spots": result}
 
 
-def synthesize(state):
+def synthesize(state, config: RunnableConfig = None):
     findings = state["findings"]
     clf = state["classification"]
     c_map = state.get("contradiction_map")
@@ -86,7 +87,7 @@ def synthesize(state):
     if b_spots and b_spots.topics_not_covered:
         extra += "\n\nBLIND SPOTS: " + "; ".join(b_spots.topics_not_covered[:3])
 
-    model = make_model("SYNTHESIZE_MODEL", "openai/gpt-4o-mini")
+    model = make_model("SYNTHESIZE_MODEL", "deepseek/deepseek-v4-flash", config=config)
     summary = model.invoke([
         SystemMessage(content=(
             "Você é um meta-revisor STORM. Escreva um parágrafo de veredito integrando "

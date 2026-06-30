@@ -1,5 +1,6 @@
 """classify node."""
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 
 from paper.nodes_helpers import make_model
 from paper.schemas import Classification
@@ -20,8 +21,8 @@ Inclua também quando aplicável:
 """
 
 
-def classify(state):
-    model = make_model("CLASSIFY_MODEL", "qwen/qwen3-8b", Classification)
+def classify(state, config: RunnableConfig = None):
+    model = make_model("CLASSIFY_MODEL", "qwen/qwen3-8b", Classification, config=config)
     result = model.invoke([
         SystemMessage(content=_CLASSIFY_SYSTEM),
         HumanMessage(content=f"Classifique este paper:\n\n{state['paper']}"),

@@ -1,5 +1,6 @@
 """reviewer and figure_reviewer nodes."""
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 
 from paper.nodes_helpers import make_model, tool_loop, extract_arxiv_id
 from paper.prompts import build_reviewer_prompt, FINDING_SCHEMA_PROMPT
@@ -30,8 +31,10 @@ _TOOL_INSTRUCTIONS = {
 _CONCISENESS = "\n\nIMPORTANTE: Máximo 4 findings, cada um com no máximo 3 frases."
 
 
-def _structured_findings(analysis_text: str, dim: str, persona: str) -> list[Finding]:
-    structured = make_model("STRUCTURED_MODEL", "openai/gpt-4o-mini", FindingsList, max_tokens=4000)
+def _structured_findings(
+    analysis_text: str, dim: str, persona: str, config: RunnableConfig = None
+) -> list[Finding]:
+    structured = make_model("STRUCTURED_MODEL", "openai/gpt-4o-mini", FindingsList, max_tokens=2000, config=config)
     result = structured.invoke([
         SystemMessage(content=(
             "Converta a análise em findings estruturados. "
@@ -54,7 +57,7 @@ def _structured_findings(analysis_text: str, dim: str, persona: str) -> list[Fin
     return findings
 
 
-def reviewer(state):
+def reviewer(state, config: RunnableConfig = None):
     dim = state["dimension"]
     persona = state.get("persona", "skeptic")
     clf = state["classification"]
@@ -66,7 +69,7 @@ def reviewer(state):
     )
 
     if dim in ("citations", "novelty"):
-        model = make_model("REVIEWER_MODEL", "google/gemini-2.5-flash", max_tokens=4000)
+        model = make_model("REVIEWER_MODEL", "deepseek/deepseek-v4-flash", max_tokens=4000, config=config)
         model_with_tools = model.bind_tools(REVIEWER_TOOLS)
         messages = [
             SystemMessage(content=f"{system_prompt}\n\n{_TOOL_INSTRUCTIONS[dim]}\n\n{FINDING_SCHEMA_PROMPT}{_CONCISENESS}"),
@@ -74,17 +77,17 @@ def reviewer(state):
         ]
         analysis_text = tool_loop(model_with_tools, messages, max_rounds=6)
     else:
-        model = make_model("REVIEWER_MODEL", "google/gemini-2.5-flash", max_tokens=3000)
+        model = make_model("REVIEWER_MODEL", "deepseek/deepseek-v4-flash", max_tokens=3000, config=config)
         response = model.invoke([
             SystemMessage(content=system_prompt + "\n\n" + FINDING_SCHEMA_PROMPT + _CONCISENESS),
             HumanMessage(content=f"{header}\n\nPAPER:\n{paper}"),
         ])
         analysis_text = response.content
 
-    return {"findings": _structured_findings(analysis_text, dim, persona)}
+    return {"findings": _structured_findings(analysis_text, dim, persona, config)}
 
 
-def figure_reviewer(state):
+def figure_reviewer(state, config: RunnableConfig = None):
     """Vision node — fetches ar5iv figures and runs image analysis."""
     clf = state["classification"]
     paper = state["paper"]
@@ -113,6 +116,6 @@ def figure_reviewer(state):
         "cherry-picking, ausência de barras de erro, eixos truncados, captions enganosas."
     )})
 
-    model = make_model("FIGURE_MODEL", "google/gemini-2.5-flash", max_tokens=3000)
+    model = make_model("FIGURE_MODEL", "google/gemini-2.5-flash", max_tokens=3000, config=config)
     analysis_text = model.invoke([HumanMessage(content=vision_content)]).content
-    return {"findings": _structured_findings(analysis_text, "figures", "skeptic")}
+    return {"findings": _structured_findings(analysis_text, "figures", "skeptic", config)}

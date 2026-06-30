@@ -3,6 +3,7 @@ import os
 import re
 
 from langchain_core.messages import ToolMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 
 from paper.tools import REVIEWER_TOOLS
@@ -16,11 +17,26 @@ def extract_arxiv_id(text: str) -> str | None:
     return m.group(1) if m else None
 
 
-def make_model(model_env_key: str, default: str, structured_schema=None, max_tokens: int = None):
+def get_api_key(config: RunnableConfig | None) -> str:
+    """BYOK: config['configurable']['openrouter_api_key'] overrides env var."""
+    if config:
+        key = config.get("configurable", {}).get("openrouter_api_key")
+        if key:
+            return key
+    return os.getenv("OPENROUTER_API_KEY", "")
+
+
+def make_model(
+    model_env_key: str,
+    default: str,
+    structured_schema=None,
+    max_tokens: int = None,
+    config: RunnableConfig | None = None,
+):
     kwargs = dict(
         model=os.getenv(model_env_key, default),
         base_url="https://openrouter.ai/api/v1",
-        api_key=os.getenv("OPENROUTER_API_KEY"),
+        api_key=get_api_key(config),
         default_headers={"HTTP-Referer": "http://localhost:2024", "X-Title": "p7-reviewer"},
         temperature=0,
     )
