@@ -25,8 +25,9 @@ PERSONA_PROMPTS = {
 # Prompts base por dimensão
 DIMENSION_PROMPTS = {
     "citations": (
-        "Foco em CITAÇÕES: detecte referências fabricadas, incorretas ou que não sustentam "
-        "o que o texto afirma. Se uma referência não pôde ser verificada, marque como critical."
+        "Foco em CITAÇÕES: use as ferramentas para verificar referências suspeitas. "
+        "Reporte findings APENAS sobre referências específicas que você verificou. "
+        "NUNCA critique citações genericamente sem citar o título exato verificado."
     ),
     "methodology": (
         "Foco em METODOLOGIA: encontre furos no método: amostras inadequadas, vieses não "
@@ -34,8 +35,10 @@ DIMENSION_PROMPTS = {
         "falta de grupo controle."
     ),
     "novelty": (
-        "Foco em NOVIDADE: argumente que este paper NÃO é suficientemente novo. Busque trabalhos "
-        "similares e aponte onde a contribuição é incremental, derivada ou já conhecida."
+        "Foco em NOVIDADE: busque prior work e avalie a contribuição. "
+        "Se encontrou trabalho similar: 'PRIOR WORK [título] já faz X → claim Y é incremental'. "
+        "Se NÃO encontrou: afirme que a claim parece válida dado o que buscou. "
+        "NUNCA critique metodologia geral, peer review ou generalidades — avalie SOMENTE novidade."
     ),
     "writing": (
         "Foco em ESCRITA: detecte linguagem vaga, jargão sem definição, afirmações sem suporte, "

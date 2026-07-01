@@ -5,7 +5,7 @@ import re
 import httpx
 from langchain_core.tools import tool
 
-from paper.paper7 import paper7_search, paper7_get
+from paper.paper7 import paper7_search, paper7_get, arxiv_api_search
 
 
 # ---------------------------------------------------------------------------
@@ -31,6 +31,8 @@ def search_papers(query: str) -> str:
             pass
 
     results = paper7_search(query, max_results=5)
+    if not results:
+        results = arxiv_api_search(query, max_results=5)
     if not results:
         return "No papers found on arXiv for this query."
     return "\n".join(f"[{r['id']}] {r['title']}" for r in results)

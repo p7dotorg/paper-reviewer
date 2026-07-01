@@ -1,5 +1,10 @@
-"""paper7 CLI integration — fetch/search arXiv papers."""
+"""paper7 CLI integration + Semantic Scholar fallback for search."""
+import re
 import subprocess
+import time
+import urllib.parse
+
+import httpx
 
 
 def _paper7(args: list[str], timeout: int = 20) -> str:
@@ -41,3 +46,34 @@ def paper7_get(arxiv_id: str) -> str:
 def paper7_refs(arxiv_id: str) -> str:
     """List references of a paper via Semantic Scholar."""
     return _paper7(["refs", arxiv_id])
+
+
+def arxiv_api_search(query: str, max_results: int = 5) -> list[dict]:
+    """Semantic Scholar API search — fallback when paper7 CLI search fails."""
+    url = "https://api.semanticscholar.org/graph/v1/paper/search"
+    for attempt in range(3):
+        try:
+            time.sleep(1.5 * (attempt + 1))  # 1.5s, 3s, 4.5s — respect S2 rate limit
+            r = httpx.get(
+                url,
+                params={"query": query[:200], "fields": "title,year,externalIds", "limit": max_results},
+                timeout=15,
+                headers={"User-Agent": "p7-reviewer/0.1"},
+            )
+            if r.status_code == 429:
+                continue
+            if r.status_code != 200:
+                return []
+            results = []
+            for item in r.json().get("data", []):
+                title = item.get("title", "")
+                if not title:
+                    continue
+                arxiv_id = item.get("externalIds", {}).get("ArXiv", "")
+                year = item.get("year", "")
+                paper_id = arxiv_id or item.get("paperId", "")[:12]
+                results.append({"id": paper_id, "title": f"{title} ({year})" if year else title})
+            return results[:max_results]
+        except Exception:
+            return []
+    return []

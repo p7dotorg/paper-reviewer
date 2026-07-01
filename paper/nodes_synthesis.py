@@ -60,10 +60,12 @@ def synthesize(state, config: RunnableConfig = None):
     minor = [f for f in findings if f.severity == "minor"]
 
     issue_personas: dict[str, set] = {}
+    issue_full: dict[str, str] = {}
     for f in findings:
         key = f.dimension + ":" + f.issue[:40]
         issue_personas.setdefault(key, set()).add(f.persona)
-    high_confidence = [k.split(":")[1] for k, v in issue_personas.items() if len(v) >= 2]
+        issue_full.setdefault(key, f.issue)
+    high_confidence = [issue_full[k] for k, v in issue_personas.items() if len(v) >= 2]
 
     consensus_criticals = [f for f in critical if len(issue_personas.get(f.dimension + ":" + f.issue[:40], set())) >= 2]
     if len(consensus_criticals) >= 2 or len(critical) >= 3:

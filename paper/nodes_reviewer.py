@@ -13,18 +13,27 @@ _TOOL_INSTRUCTIONS = {
         "• search_papers(query) — busca no arXiv pelo título ou autores da referência\n"
         "• get_paper(arxiv_id) — lê o abstract de um paper arXiv para confirmar conteúdo\n"
         "• verify_doi(doi) — confirma publicação via Crossref (para papers fora do arXiv)\n\n"
-        "Estratégia: para cada referência suspeita, tente search_papers primeiro. "
-        "Se não achar e a referência tiver DOI, use verify_doi. "
-        "Verifique no mínimo 5 referências — priorize títulos vagos ou autores desconhecidos."
+        "Estratégia: verifique ≥5 referências — priorize títulos vagos ou autores desconhecidos. "
+        "Para cada referência: search_papers primeiro; se não achar e houver DOI, use verify_doi.\n\n"
+        "FORMATO OBRIGATÓRIO — cada finding DEVE conter o título exato verificado:\n"
+        "  • VERIFICADO: [título] — abstract confirma o que o paper afirma\n"
+        "  • NÃO ENCONTRADO: [título] — suspeita de citação alucinada ou pré-print não indexado\n"
+        "  • MISMATCH: [título] — encontrado mas conteúdo diverge do citado\n\n"
+        "NUNCA gere crítica genérica sem citar título exato. "
+        "NUNCA inclua na resposta o processo de busca — apenas os resultados."
     ),
     "novelty": (
         "Você tem 3 ferramentas:\n"
         "• search_papers(query) — busca no arXiv por método, problema ou baseline\n"
         "• get_paper(arxiv_id) — lê o abstract para comparar com as claims do paper\n"
         "• verify_doi(doi) — verifica papers de conferências fora do arXiv\n\n"
-        "Estratégia: faça pelo menos 3 buscas com queries diferentes "
-        "(nome do método, problema central, baseline principal). "
-        "Para cada resultado relevante, leia o abstract com get_paper e compare com as claims."
+        "Estratégia: faça ≥3 buscas sobre as contribuições CENTRAIS: "
+        "nome do benchmark/método, problema principal, baselines usados.\n\n"
+        "FORMATO dos findings:\n"
+        "  • Se encontrou prior work: 'PRIOR WORK [título] já faz X → claim Y é incremental'\n"
+        "  • Se NÃO encontrou: 'Busca por [query] não retornou prior work → claim parece válida'\n\n"
+        "NUNCA critique metodologia geral, falta de peer review ou generalidades. "
+        "NUNCA inclua na resposta tentativas ou descrições de busca — apenas os resultados."
     ),
 }
 
@@ -69,7 +78,9 @@ def reviewer(state, config: RunnableConfig = None):
     )
 
     if dim in ("citations", "novelty"):
-        model = make_model("REVIEWER_MODEL", "deepseek/deepseek-v4-flash", max_tokens=4000, config=config)
+        # Reasoning models (DeepSeek V4 Flash) return empty content in tool loops —
+        # use a non-reasoning model for reliable tool calling
+        model = make_model("TOOL_MODEL", "openai/gpt-4o-mini", max_tokens=4000, config=config)
         model_with_tools = model.bind_tools(REVIEWER_TOOLS)
         messages = [
             SystemMessage(content=f"{system_prompt}\n\n{_TOOL_INSTRUCTIONS[dim]}\n\n{FINDING_SCHEMA_PROMPT}{_CONCISENESS}"),
