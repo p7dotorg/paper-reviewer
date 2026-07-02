@@ -14,10 +14,10 @@ from paper.paper7 import paper7_search, paper7_get, arxiv_api_search
 
 @tool
 def search_papers(query: str) -> str:
-    """Search arXiv for papers matching a query (title, method name, topic, or author).
-    Use this to find related work, verify if a cited paper exists on arXiv,
-    or discover prior work that challenges the novelty of the paper under review.
-    Returns a list of arXiv IDs and titles."""
+    """Search Semantic Scholar and arXiv for papers matching a query.
+    Covers CS, psychology, philosophy, medicine, and all scientific disciplines.
+    Use this to verify if a cited paper exists, find related work, or discover
+    prior work that challenges novelty claims. Returns paper IDs and titles."""
     base = os.getenv("PAPER7_API_URL", "")
     if base:
         try:
@@ -30,11 +30,12 @@ def search_papers(query: str) -> str:
         except Exception:
             pass
 
-    results = paper7_search(query, max_results=5)
+    # Semantic Scholar first — broad cross-disciplinary coverage
+    results = arxiv_api_search(query, max_results=5)
     if not results:
-        results = arxiv_api_search(query, max_results=5)
+        results = paper7_search(query, max_results=5)
     if not results:
-        return "No papers found on arXiv for this query."
+        return "No papers found for this query."
     return "\n".join(f"[{r['id']}] {r['title']}" for r in results)
 
 
