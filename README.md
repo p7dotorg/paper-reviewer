@@ -48,8 +48,8 @@ Estimated cost per review: **~$0.10–0.20**.
 ## Setup
 
 ```bash
-git clone https://github.com/p7dotorg/paper-reviewer
-cd paper-reviewer
+git clone https://github.com/p7dotorg/redink
+cd redink
 pip install -e .
 
 cp .env.example .env
