@@ -39,6 +39,7 @@ def make_model(
         api_key=get_api_key(config),
         default_headers={"HTTP-Referer": "http://localhost:2024", "X-Title": "redink"},
         temperature=0,
+        max_retries=4,  # OpenRouter providers throw transient 429s — back off instead of crashing the run
     )
     if max_tokens:
         kwargs["max_tokens"] = max_tokens
