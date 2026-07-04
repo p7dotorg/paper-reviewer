@@ -14,16 +14,23 @@ from rich.markdown import Markdown
 from rich.rule import Rule
 from rich.text import Text
 from prompt_toolkit import PromptSession
-from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.styles import Style
+from prompt_toolkit.formatted_text import HTML
 
 from redink_cli.welcome import show_welcome, VERSION, TIPS
 from redink_cli.run import stream_review, render_report
 from redink_cli.report import format_report
 from redink_cli.commands import cmd_review, cmd_rerun
+from redink_cli.completer import RedinkCompleter
 
 console = Console()
-_PROMPT_STYLE = Style.from_dict({"prompt": "#e82529 bold"})
+_PROMPT_STYLE = Style.from_dict({
+    "prompt": "#e82529 bold",
+    "bottom-toolbar": "#888888 bg:#1c1c1c",
+})
+_HISTORY_FILE = Path.home() / ".redink" / "history"
 
 
 # ── one-shot ──────────────────────────────────────────────────────────────────
@@ -75,11 +82,33 @@ def _chat_loop() -> None:
     from redink_core.chat import answer as core_answer
 
     show_welcome()
-    session: PromptSession = PromptSession(
-        history=InMemoryHistory(), style=_PROMPT_STYLE
-    )
     last_state: dict   = {}
     chat_history: list = []
+
+    def _dimensions() -> list:
+        clf = last_state.get("classification")
+        return list(getattr(clf, "dimensions", [])) if clf else []
+
+    def _toolbar():
+        v = last_state.get("verdict")
+        if not v:
+            return HTML(" <b>redink</b>  ·  no review yet  —  /review &lt;paper&gt;")
+        color = {"PASS": "ansigreen", "REVISE": "ansiyellow", "FAIL": "ansired"}.get(v.status, "")
+        return HTML(
+            f" <b>redink</b>  ·  <{color}>{v.status}</{color}>  ·  "
+            f"{v.critical_count}C {v.major_count}M {v.minor_count}m  "
+            f"·  ask anything, or /report /rerun /exit"
+        )
+
+    _HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    session: PromptSession = PromptSession(
+        history=FileHistory(str(_HISTORY_FILE)),
+        style=_PROMPT_STYLE,
+        completer=RedinkCompleter(_dimensions),
+        complete_while_typing=True,
+        auto_suggest=AutoSuggestFromHistory(),
+        bottom_toolbar=_toolbar,
+    )
 
     while True:
         try:
