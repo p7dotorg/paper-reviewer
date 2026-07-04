@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "redink-core"
-version = "0.1.0"
+version = "0.2.0"
 description = "redink LangGraph core — STORM-style adversarial paper red-teamer"
 requires-python = ">=3.11"
 license = { text = "MIT" }

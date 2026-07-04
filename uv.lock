@@ -819,7 +819,7 @@ wheels = [
 
 [[package]]
 name = "redink"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "cli" }
 dependencies = [
     { name = "prompt-toolkit" },
@@ -838,7 +838,7 @@ requires-dist = [
 
 [[package]]
 name = "redink-core"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "core" }
 dependencies = [
     { name = "httpx" },

@@ -9,7 +9,7 @@ from rich.text import Text
 
 console = Console()
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 _R = "#E8252A"
 

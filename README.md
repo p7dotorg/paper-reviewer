@@ -166,6 +166,22 @@ Input for `redink`: `{ "paper": "…" }` or `{ "github_url": "https://arxiv.org/
 
 **Fetch & truncation.** arXiv is fetched via ar5iv with `<table>` preserved as pipe rows and `<math>` as LaTeX. Reviewers get up to 60k chars with an explicit excerpt notice, so "missing" sections in the omitted tail are never reported as flaws. Abstract-only renders (ar5iv failures) are detected and flagged.
 
+## Data & privacy
+
+redink runs locally, but reviewing a paper sends parts of it to third parties. **If your paper is unpublished or confidential, know what leaves your machine:**
+
+| Goes out | To | What |
+|---|---|---|
+| LLM calls | OpenRouter → the chosen provider (OpenAI, DeepSeek, Google, …) | paper excerpts, findings, prompts |
+| Citation / novelty tools | Semantic Scholar · arXiv · Crossref | search queries derived from your claims and references |
+| Figures | ar5iv (fetch) + the vision model via OpenRouter | figure images + captions |
+| Dataset scans (`drl`) | HuggingFace · Kaggle · OpenML | your search query only — no paper text |
+| Tracing (**only if** `LANGSMITH_TRACING=true`) | LangSmith | full run traces, including paper text |
+
+redink itself stores nothing beyond local files — the `*.review.md` / `*.annotated.html` report and the OKF `bundle/`. It does not phone home. For sensitive work, point the models at a self-hosted / private OpenRouter setup and keep `LANGSMITH_TRACING=false` (the default).
+
+See [SECURITY.md](SECURITY.md) to report a vulnerability.
+
 ---
 
 Part of [p7dotorg](https://github.com/p7dotorg). · [redink.sh](https://redink.sh)
