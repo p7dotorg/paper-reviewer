@@ -6,6 +6,14 @@
 
 Adversarial pre-submission paper red-teamer. Uses a STORM-style multi-persona LangGraph workflow to find citation hallucinations, statistical weaknesses, novelty gaps, and writing problems before a real reviewer does.
 
+## Demo
+
+<p align="center">
+  <img src="assets/demo.gif" width="820" alt="redink demo — paper review + dataset research in one chat"/>
+</p>
+
+<sub>Reproduce it: <code>vhs assets/demo.tape</code> (renders <code>assets/demo.gif</code>).</sub>
+
 ## Architecture
 
 ```
