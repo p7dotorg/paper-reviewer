@@ -2,7 +2,8 @@
   "$schema": "https://langgra.ph/schema.json",
   "dependencies": ["./core"],
   "graphs": {
-    "redink": "./core/redink_core/graph.py:graph"
+    "redink": "./core/redink_core/graph.py:graph",
+    "drl": "./core/redink_core/drl/graph.py:graph"
   },
   "env": ".env"
 }

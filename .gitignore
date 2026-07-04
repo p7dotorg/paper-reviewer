@@ -24,3 +24,6 @@ automem.md
 
 # eval datasets (large / generated — not source)
 eval/data/
+
+# DRL knowledge bundle (dev/test scans — real bundles committed intentionally)
+/bundle/
