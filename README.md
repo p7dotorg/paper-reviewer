@@ -6,8 +6,6 @@
 
 Adversarial pre-submission paper red-teamer **and** dataset opportunity scout — one chat, two LangGraph flows. It finds citation hallucinations, statistical weaknesses, novelty gaps, and writing problems in a paper before a real reviewer does; and it scans dataset sources to score and catalog opportunities into a portable knowledge bundle.
 
-## Demo
-
 <p align="center">
   <img src="assets/demo.gif" width="820" alt="redink demo — a calibrated paper review"/>
 </p>
