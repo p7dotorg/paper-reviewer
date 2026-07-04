@@ -29,9 +29,35 @@ def _replace_math(m: re.Match) -> str:
     return f" $${latex}$$ " if is_block else f" ${latex}$ "
 
 
+_TABLE_RE = re.compile(r"<table\b[^>]*>(.*?)</table>", re.DOTALL | re.IGNORECASE)
+_ROW_RE   = re.compile(r"<tr\b[^>]*>(.*?)</tr>", re.DOTALL | re.IGNORECASE)
+_CELL_RE  = re.compile(r"<t[dh]\b[^>]*>(.*?)</t[dh]>", re.DOTALL | re.IGNORECASE)
+
+
+def _cell_text(cell_html: str) -> str:
+    txt = re.sub(r"<[^>]+>", " ", cell_html)
+    return re.sub(r"\s+", " ", txt).strip()
+
+
+def _table_to_text(m: re.Match) -> str:
+    """Render a <table> as pipe-delimited rows so numeric data survives the
+    tag strip — reviewers need the actual BLEU/F1/resistivity numbers, not
+    a word-soup of concatenated cells."""
+    rows = []
+    for row_html in _ROW_RE.findall(m.group(1)):
+        cells = [_cell_text(c) for c in _CELL_RE.findall(row_html)]
+        if any(cells):
+            rows.append("| " + " | ".join(cells) + " |")
+    if not rows:
+        return " "
+    return "\n\n[TABLE]\n" + "\n".join(rows) + "\n[/TABLE]\n\n"
+
+
 def _html_to_text(html: str) -> str:
-    """Extract readable text from HTML; preserve LaTeX math as $...$ tokens."""
+    """Extract readable text from HTML; preserve LaTeX math as $...$ tokens
+    and tables as pipe-delimited rows."""
     text = _MATH_RE.sub(_replace_math, html)
+    text = _TABLE_RE.sub(_table_to_text, text)
     text = _STRIP_BLOCKS.sub(" ", text)
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"[ \t]+", " ", text)
@@ -56,6 +82,25 @@ def _fetch_github_readme(url: str) -> str | None:
     return None
 
 
+# ar5iv redirects to the arXiv abstract page when it can't render a paper —
+# these markers identify that we got the abstract shell, not the body.
+_ABSTRACT_ONLY_MARKERS = ("View a PDF of the paper titled", "Submission history", "view email")
+_ABSTRACT_NOTICE = (
+    "[AVISO AO REVISOR: apenas o ABSTRACT deste paper pôde ser recuperado — "
+    "o corpo completo (métodos, experimentos, tabelas, figuras) NÃO está "
+    "disponível. NUNCA reporte como problema a ausência de dados, experimentos "
+    "ou seções que existem no paper mas não foram recuperados aqui. Avalie "
+    "apenas o que o abstract afirma.]\n\n"
+)
+
+
+def _looks_abstract_only(text: str) -> bool:
+    """True when the fetched text is just the arXiv abstract page, not the body."""
+    if len(text) >= 12000:
+        return False
+    return sum(mk in text for mk in _ABSTRACT_ONLY_MARKERS) >= 2
+
+
 def _fetch_arxiv(url: str) -> str | None:
     m = _ARXIV_RE.search(url)
     if not m:
@@ -67,16 +112,17 @@ def _fetch_arxiv(url: str) -> str | None:
         r = httpx.get(f"https://ar5iv.labs.arxiv.org/html/{arxiv_id}", timeout=20, follow_redirects=True)
         if r.status_code == 200 and len(r.text) > 2000:
             text = _html_to_text(r.text)
-            if len(text) > 1000:
+            if len(text) > 1000 and not _looks_abstract_only(text):
                 return f"arXiv:{arxiv_id}\n\n{text}"
     except Exception:
         pass
 
-    # Fallback: abstract page
+    # Fallback: abstract page — flag it so reviewers don't fault the paper for
+    # sections they never received.
     try:
         r = httpx.get(f"https://arxiv.org/abs/{arxiv_id}", timeout=15, follow_redirects=True)
         if r.status_code == 200:
-            return f"arXiv:{arxiv_id}\n\n{_html_to_text(r.text)}"
+            return f"arXiv:{arxiv_id}\n\n{_ABSTRACT_NOTICE}{_html_to_text(r.text)}"
     except Exception:
         pass
 
