@@ -65,16 +65,22 @@ paper.md / GitHub URL / arXiv URL
 
 **Dimensions:** citations · methodology · novelty · writing · statistics · reproducibility · ethics · figures. Each runs three independent personas in parallel; findings are semantically de-duplicated (two-pass: per-dimension then global) and weighted by cross-persona agreement.
 
-### The verdict is calibrated, not vibes
+## Measured against real reviews
 
-Most "AI reviewer" prompts collapse to *reject everything* — every real paper has flaws, so a judge evaluating against an implicit ideal fails them all. redink is measured against **300 ICLR papers with their real reviews and decisions** (built from [ASAP-Review](https://github.com/neulab/ReviewAdvisor)):
+Most "AI reviewer" prompts collapse to *reject everything* — every real paper has flaws, so a judge grading against an implicit ideal fails them all. Almost no one checks. redink is measured against **300 ICLR papers with their real reviews and decisions** (from [ASAP-Review](https://github.com/neulab/ReviewAdvisor)):
 
-- **Findings recall ≈ 0.73** — it surfaces ~73% of the weaknesses human reviewers actually raised.
-- **Verdict calibration** — the judge panel is anchored to reference papers (real finding-profiles → the verdict their rating implies). This dropped over-FAIL from **82% → 16%** and made **REVISE** the dominant verdict, matching how peer review actually behaves. FAIL is now reserved for a central conclusion that doesn't survive the debate.
+- **Findings recall ≈ 0.73** — it surfaces ~73% of the weaknesses human reviewers actually raised, at a ~0.2 noise rate.
+- **The verdict discriminates.** Anchoring the judge panel to reference papers cut the false-fail rate on *accepted* papers from **81% → 14%**, and made the verdict track the human decision: rejected papers now FAIL **4× more often** than accepted ones (54% vs 14%), where the baseline failed both alike.
 
-The measurement harness lives in [`eval/`](eval/) — the labeled-set collector, the overlap metric, and the cheap re-judge A/B that produced the calibration.
+The harness that produced — and proves — this lives in [`eval/`](eval/):
 
----
+| Tool | Does |
+|---|---|
+| `collect_asap.py` | build the labeled set (papers + real reviews + decisions) |
+| `overlap_metric.py` | findings recall / noise vs the human weaknesses |
+| `rejudge.py` · `confirm_calibration.py` | cheap judge A/B over cached findings |
+
+The pipeline output is cached, so iterating on the verdict costs cents, not a full re-run — calibration changes are **measured, never eyeballed**.
 
 ## Dataset research loop (`drl`)
 
@@ -157,17 +163,6 @@ Every model and key is configurable via `/config papers|datasets`, `redink setup
 Estimated cost per review: **~$0.10** (dominated by the gpt-4o judge panel — drop `JUDGE_MODEL` to `gpt-4o-mini` for ~$0.03, measurable quality tradeoff via `eval/`).
 
 > **Why the model split:** DeepSeek V4 Flash is a reasoning model — it returns plain text instead of JSON for structured calls and empty content in tool loops. So `STRUCTURED_MODEL`/`TOOL_MODEL` are `gpt-4o-mini`, and the verdict-deciding `JUDGE_MODEL` is `gpt-4o`.
-
-## LangGraph Studio
-
-Both graphs are registered in `langgraph.json` (`redink` and `drl`).
-
-```bash
-pip install langgraph-cli
-langgraph dev   # Studio at http://localhost:2024
-```
-
-Input for `redink`: `{ "paper": "…" }` or `{ "github_url": "https://arxiv.org/abs/…" }`. **BYOK:** set `openrouter_api_key` in Studio's config panel. The `redink` graph interrupts before `reviewer`/`figure_reviewer`/`synthesize` for inspection.
 
 ## How it works — details
 

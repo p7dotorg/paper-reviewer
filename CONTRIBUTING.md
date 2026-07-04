@@ -31,6 +31,20 @@ langgraph.json        registers both graphs: `redink` and `drl`
 Domain logic lives in `core`; presentation in `cli`. A new capability is
 usually a node (core) plus a command (cli).
 
+### Inspecting the graphs (LangGraph Studio)
+
+Both graphs are registered in `langgraph.json`. To step through them visually:
+
+```bash
+pip install langgraph-cli
+langgraph dev          # Studio at http://localhost:2024
+```
+
+Input for `redink`: `{ "paper": "…" }` or `{ "github_url": "…" }`; set
+`openrouter_api_key` in Studio's config panel (BYOK). The `redink` graph
+interrupts before `reviewer` / `figure_reviewer` / `synthesize` so you can
+inspect intermediate state.
+
 ## Testing
 
 There is no formal test suite. Validation is done with small inline scripts
