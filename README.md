@@ -160,9 +160,7 @@ Every model and key is configurable via `/config papers|datasets`, `redink setup
 | **Judge panel + rebuttal** | `JUDGE_MODEL` | `openai/gpt-4o` |
 | Dataset scorer | `DRL_SCORE_MODEL` | `openai/gpt-4o-mini` |
 
-Estimated cost per review: **~$0.10** (dominated by the gpt-4o judge panel — drop `JUDGE_MODEL` to `gpt-4o-mini` for ~$0.03, measurable quality tradeoff via `eval/`).
-
-> **Why the model split:** DeepSeek V4 Flash is a reasoning model — it returns plain text instead of JSON for structured calls and empty content in tool loops. So `STRUCTURED_MODEL`/`TOOL_MODEL` are `gpt-4o-mini`, and the verdict-deciding `JUDGE_MODEL` is `gpt-4o`.
+Estimated cost per review: **~$0.10** — mostly the gpt-4o judge panel. Set `JUDGE_MODEL=gpt-4o-mini` for ~$0.03.
 
 ## How it works — details
 
