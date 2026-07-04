@@ -28,6 +28,8 @@ uv run redink
 
 Configure everything from inside the chat with `/config` (or `redink setup` for a full wizard). After a review, type freely to ask questions about the findings.
 
+See [`examples/`](examples/) for a sample review and a sample OKF concept.
+
 ---
 
 ## Paper review
