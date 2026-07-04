@@ -40,10 +40,9 @@ pip install langgraph-cli
 langgraph dev          # Studio at http://localhost:2024
 ```
 
-Input for `redink`: `{ "paper": "…" }` or `{ "github_url": "…" }`; set
-`openrouter_api_key` in Studio's config panel (BYOK). The `redink` graph
-interrupts before `reviewer` / `figure_reviewer` / `synthesize` so you can
-inspect intermediate state.
+Input for `redink`: `{ "paper": "…" }` or `{ "github_url": "…" }`; keys are
+BYOK. The `redink` graph interrupts before `reviewer` / `figure_reviewer` /
+`synthesize` so you can inspect intermediate state.
 
 ## Testing
 
