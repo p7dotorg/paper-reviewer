@@ -4,58 +4,105 @@
   <img src="assets/logo.svg" width="120" alt="redink logo"/>
 </p>
 
-Adversarial pre-submission paper red-teamer. Uses a STORM-style multi-persona LangGraph workflow to find citation hallucinations, statistical weaknesses, novelty gaps, and writing problems before a real reviewer does.
+Adversarial pre-submission paper red-teamer **and** dataset opportunity scout — one chat, two LangGraph flows. It finds citation hallucinations, statistical weaknesses, novelty gaps, and writing problems in a paper before a real reviewer does; and it scans dataset sources to score and catalog opportunities into a portable knowledge bundle.
 
 ## Demo
 
 <p align="center">
-  <img src="assets/demo.gif" width="820" alt="redink demo — paper review + dataset research in one chat"/>
+  <img src="assets/demo.gif" width="820" alt="redink demo — a calibrated paper review"/>
 </p>
 
 <sub>Reproduce it: <code>vhs assets/demo.tape</code> (renders <code>assets/demo.gif</code>).</sub>
 
-## Architecture
+## Two flows, one REPL
+
+```bash
+uv run redink
+```
+
+| | Review papers | Research datasets |
+|---|---|---|
+| **do** | `/review <path\|arxiv-url>` | `/scan <query>` |
+| **read** | `/report` · `/rerun <dim>` | `/rank` · `/gaps` · `/spikes` · `/wiki <slug>` |
+| **graph** | `redink` | `drl` |
+
+Configure everything from inside the chat with `/config` (or `redink setup` for a full wizard). After a review, type freely to ask questions about the findings.
+
+---
+
+## Paper review
+
+### Architecture
 
 ```
 paper.md / GitHub URL / arXiv URL
-         │
-         ▼
-  [fetch_paper]     → fetches README from GitHub or PDF text from arXiv URL
-         │
-         ▼
-  [classify]        → extracts: area, paper_type, dimensions, citations (up to 20),
-                      claims (5–8 technical subject+verb+object)
-         │
-         ▼ (parallel fan-out via Send — 3 personas × N dimensions)
-  [reviewer] × N    → skeptic · practitioner · academic, each with different priors
-  [figure_reviewer] → Gemini Vision on ar5iv figures (cherry-picking, truncated axes)
-         │
-         ▼
-  [contradiction_map] → where do personas disagree?
-  [blind_spot]        → what did all reviewers miss?
-         │
-         ▼
-  [synthesize]      → PASS / REVISE / FAIL verdict + findings ranked by severity
+   │
+   ▼
+ [fetch_paper]      arXiv via ar5iv (tables preserved as pipe rows; abstract-only
+                    fetches are flagged so reviewers don't fault missing sections)
+   │
+   ▼
+ [classify]         area · type · dimensions · citations · 5–8 technical claims
+   │
+   ▼  fan-out via Send — 3 personas × N dimensions
+ [reviewer] × N     skeptic · practitioner · academic, different priors each
+ [figure_reviewer]  Gemini Vision on ar5iv figures (cherry-picking, truncated axes)
+   │
+   ▼
+ [debate]           dedup, then every CRITICAL faces a defender (argues the
+                    author's side from the text) + a judge → sustained /
+                    downgraded / dismissed. Kills criticals nobody can defend
+                    against — and, more importantly, that nobody can uphold.
+   │
+   ▼
+ [contradiction_map] · [blind_spot]
+   │
+   ▼
+ [judge_panel]      3 lenses — rigor · contribution · era-appropriate standards —
+                    calibrated against reference papers → PASS / REVISE / FAIL
+   │
+   ▼
+ [synthesize]       verdict + findings, plus a self-contained interactive HTML report
 ```
 
-**Dimensions reviewed:** citations · methodology · novelty · writing · statistics · reproducibility · ethics · figures
+**Dimensions:** citations · methodology · novelty · writing · statistics · reproducibility · ethics · figures. Each runs three independent personas in parallel; findings are semantically de-duplicated (two-pass: per-dimension then global) and weighted by cross-persona agreement.
 
-Each dimension runs three independent reviewer personas (skeptic, practitioner, academic) in parallel. Findings are de-duplicated and weighted by cross-persona confidence.
+### The verdict is calibrated, not vibes
 
-## Models (via OpenRouter)
+Most "AI reviewer" prompts collapse to *reject everything* — every real paper has flaws, so a judge evaluating against an implicit ideal fails them all. redink is measured against **300 ICLR papers with their real reviews and decisions** (built from [ASAP-Review](https://github.com/neulab/ReviewAdvisor)):
 
-| Role | Env var | Default |
-|---|---|---|
-| Classify | `CLASSIFY_MODEL` | `qwen/qwen3-8b` |
-| Reviewer (analysis) | `REVIEWER_MODEL` | `deepseek/deepseek-v4-flash` |
-| Reviewer (tool calls) | `TOOL_MODEL` | `openai/gpt-4o-mini` |
-| Figure review | `FIGURE_MODEL` | `google/gemini-2.5-flash` |
-| Structured output | `STRUCTURED_MODEL` | `openai/gpt-4o-mini` |
-| Synthesis + verdict | `SYNTHESIZE_MODEL` | `deepseek/deepseek-v4-flash` |
+- **Findings recall ≈ 0.73** — it surfaces ~73% of the weaknesses human reviewers actually raised.
+- **Verdict calibration** — the judge panel is anchored to reference papers (real finding-profiles → the verdict their rating implies). This dropped over-FAIL from **82% → 16%** and made **REVISE** the dominant verdict, matching how peer review actually behaves. FAIL is now reserved for a central conclusion that doesn't survive the debate.
 
-Estimated cost per review: **~$0.10–0.20**.
+The measurement harness lives in [`eval/`](eval/) — the labeled-set collector, the overlap metric, and the cheap re-judge A/B that produced the calibration.
 
-> **Note on model choices:** DeepSeek V4 Flash is a reasoning model — it returns plain text instead of JSON for `with_structured_output()` calls, and returns empty `.content` in tool loops. `STRUCTURED_MODEL` and `TOOL_MODEL` default to `gpt-4o-mini` to avoid both issues.
+---
+
+## Dataset research loop (`drl`)
+
+A second graph that scans dataset sources, scores opportunity, and writes an [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog) (OKF) bundle — a portable directory of markdown concepts you can `git clone` or open in Obsidian.
+
+```
+ [scan] × sources  →  [merge]  →  [prescore]  →  [score] × datasets  →  [catalog]  →  [digest]
+   HF · Kaggle          dedupe     quality gate    LLM opportunity 0–3    OKF concepts   run summary
+   · OpenML                        (source-aware)                        + index/log
+```
+
+Analysis reads the bundle's frontmatter at query time (no DB), exactly as the OKF spec intends:
+
+| Command | What it does |
+|---|---|
+| `/scan <query> [--sources hf,kaggle,openml] [--limit N]` | scan → score → write OKF concepts |
+| `/rank [N]` | top datasets by opportunity **PageRank** over the tag-similarity graph |
+| `/gaps [N]` | least-covered task categories |
+| `/spikes [N]` | recently-active datasets (velocity proxy) |
+| `/wiki <slug>` | print an OKF concept |
+
+> Papers With Code was dropped — its API now redirects to Hugging Face. OpenML replaced it. Kaggle's list endpoint works anonymously (`KAGGLE_*` only raises limits).
+
+Also usable one-shot / in cron: `drl scan "..."`, `drl rank`, `drl gaps`, `drl setup`.
+
+---
 
 ## Setup
 
@@ -66,113 +113,59 @@ git clone https://github.com/p7dotorg/redink
 cd redink
 uv sync
 
-cp .env.example .env
-# edit .env — set OPENROUTER_API_KEY at minimum
+uv run redink setup      # interactive wizard: keys + models → .env
+# or: cp .env.example .env  and set OPENROUTER_API_KEY
 ```
 
 ## Usage
 
-### Interactive chat (default)
-
 ```bash
-uv run redink
+uv run redink                                   # interactive chat (both flows)
+uv run redink my-paper.md                       # one-shot review (CI / pipe)
+uv run redink https://arxiv.org/abs/1706.03762  # arXiv
+cat paper.md | uv run redink -                  # stdin
 ```
 
-Opens a REPL. Use slash commands:
+One-shot prints the report to stdout, saves `<paper>.review.md`, and writes an interactive `<paper>.annotated.html`.
 
-| Command | Description |
-|---|---|
-| `/review <path\|url>` | Run a full review (streams progress) |
-| `/report` | Re-display the last verdict |
-| `/rerun <dimension>` | Re-run one dimension (e.g. `novelty`) |
-| `/clear` | Clear screen and restart |
-| `/exit` | Quit |
+## Models & config
 
-After a review, type freely to ask questions about findings.
+Every model and key is configurable via `/config papers|datasets`, `redink setup`, or `.env`. All calls route through OpenRouter and are capped (`max_tokens`) to avoid runaway credit reservations.
 
-### One-shot (CI / pipe)
+| Role | Env var | Default |
+|---|---|---|
+| Classify | `CLASSIFY_MODEL` | `openai/gpt-4o-mini` |
+| Reviewer / defender | `REVIEWER_MODEL` | `deepseek/deepseek-v4-flash` |
+| Tool calls (citations/novelty) | `TOOL_MODEL` | `openai/gpt-4o-mini` |
+| Figure review | `FIGURE_MODEL` | `google/gemini-2.5-flash` |
+| Structured output / dedup | `STRUCTURED_MODEL` | `openai/gpt-4o-mini` |
+| Synthesis prose | `SYNTHESIZE_MODEL` | `deepseek/deepseek-v4-flash` |
+| **Judge panel + rebuttal** | `JUDGE_MODEL` | `openai/gpt-4o` |
+| Dataset scorer | `DRL_SCORE_MODEL` | `openai/gpt-4o-mini` |
 
-```bash
-# Local file
-uv run redink my-paper.md
+Estimated cost per review: **~$0.10** (dominated by the gpt-4o judge panel — drop `JUDGE_MODEL` to `gpt-4o-mini` for ~$0.03, measurable quality tradeoff via `eval/`).
 
-# GitHub repo (fetches README.md)
-uv run redink https://github.com/user/paper-repo
-
-# arXiv
-uv run redink https://arxiv.org/abs/2607.01224
-
-# stdin
-cat paper.md | uv run redink -
-```
-
-The report is printed to stdout and saved as `<paper>.review.md`.
+> **Why the model split:** DeepSeek V4 Flash is a reasoning model — it returns plain text instead of JSON for structured calls and empty content in tool loops. So `STRUCTURED_MODEL`/`TOOL_MODEL` are `gpt-4o-mini`, and the verdict-deciding `JUDGE_MODEL` is `gpt-4o`.
 
 ## LangGraph Studio
 
-The graph is registered in `langgraph.json` as `redink` and visible in Studio as **redink**.
+Both graphs are registered in `langgraph.json` (`redink` and `drl`).
 
 ```bash
 pip install langgraph-cli
-langgraph dev
+langgraph dev   # Studio at http://localhost:2024
 ```
 
-Open Studio at `http://localhost:2024`. Pass input as:
-```json
-{ "paper": "paste paper text here" }
-```
-or:
-```json
-{ "github_url": "https://github.com/user/repo" }
-```
+Input for `redink`: `{ "paper": "…" }` or `{ "github_url": "https://arxiv.org/abs/…" }`. **BYOK:** set `openrouter_api_key` in Studio's config panel. The `redink` graph interrupts before `reviewer`/`figure_reviewer`/`synthesize` for inspection.
 
-**BYOK:** Set your OpenRouter key in Studio's Default Configuration panel under `openrouter_api_key` — no server restart needed.
+## How it works — details
 
-**Interrupts:** The graph pauses before `reviewer`, `figure_reviewer`, and `synthesize` nodes so you can inspect intermediate state before continuing.
+**Citation verification.** Only the *skeptic* persona makes web requests (all three in parallel would exhaust the Semantic Scholar rate limit). Tools: `search_papers` (Semantic Scholar, cross-disciplinary), `get_paper` (arXiv abstract), `verify_doi` (Crossref). A finding's `evidence` quote is checked against the paper text — an unverifiable quote drops the finding to `minor`, killing hallucinations.
 
-## Environment Variables
+**Novelty search.** The classify node extracts 5–8 `subject+verb+object` claims that become specific arXiv queries. Results published **after** the paper under review are filtered out in code — no more 2024 papers cited as prior work for a 2017 paper.
 
-| Variable | Default | Description |
-|---|---|---|
-| `OPENROUTER_API_KEY` | required | OpenRouter API key |
-| `CLASSIFY_MODEL` | `qwen/qwen3-8b` | Classification + claims extraction |
-| `REVIEWER_MODEL` | `deepseek/deepseek-v4-flash` | Analysis reviewer (no tools) |
-| `TOOL_MODEL` | `openai/gpt-4o-mini` | Tool-calling reviewer (citations/novelty) |
-| `FIGURE_MODEL` | `google/gemini-2.5-flash` | Vision model for figures |
-| `STRUCTURED_MODEL` | `openai/gpt-4o-mini` | Structured output extraction |
-| `SYNTHESIZE_MODEL` | `deepseek/deepseek-v4-flash` | Synthesis + verdict |
-| `LANGSMITH_TRACING` | `false` | Enable LangSmith traces |
-| `LANGSMITH_PROJECT` | — | LangSmith project name |
+**Fetch & truncation.** arXiv is fetched via ar5iv with `<table>` preserved as pipe rows and `<math>` as LaTeX. Reviewers get up to 60k chars with an explicit excerpt notice, so "missing" sections in the omitted tail are never reported as flaws. Abstract-only renders (ar5iv failures) are detected and flagged.
 
-## How Citation Verification Works
-
-The `citations` reviewer uses live tool calls — but only the **skeptic** persona makes web requests. Running all three personas in parallel against the Semantic Scholar API (1 req/sec rate limit) causes all searches to fail. Practitioner and academic instead do contextual analysis (are claims well-supported by the listed references?) without hitting the network.
-
-Skeptic tools for citations:
-- **`search_papers`** — Semantic Scholar (broad cross-disciplinary coverage: CS, psychology, philosophy, medicine)
-- **`get_paper`** — fetches arXiv abstract by ID
-- **`verify_doi`** — Crossref lookup for non-arXiv papers (journals, books, ACM, IEEE)
-
-**Important:** papers published before arXiv existed (pre-2000 classics, psychology journals, philosophy papers) will not appear on Crossref if they lack a DOI. A failed DOI lookup is not evidence of hallucination when the reference has a complete journal+volume+page entry in the References section.
-
-## How Novelty Search Works
-
-The `novelty` reviewer uses **`search_arxiv`** (paper7 CLI → arXiv API fallback), which is faster than Semantic Scholar and has no rate limit for CS/AI/ML coverage.
-
-The classify node extracts **5–8 technical claims** in `subject+verb+object` format (e.g., "meta-LLM revises complete episode trajectories to iteratively rewrite the agent scaffold") instead of high-level assertions. These become search queries, so the novelty reviewer finds specific prior papers rather than returning generic observations.
-
-Novelty tools:
-- **`search_arxiv`** — arXiv via paper7 CLI (CS/AI/ML, no rate limit)
-- **`get_paper`** — read abstract to compare methods/results against the paper under review
-
-## Paper Truncation Strategy
-
-Long papers are truncated before being sent to models:
-
-| Node | Strategy | Rationale |
-|---|---|---|
-| `classify` | first 12k + last 3k chars | abstract + intro + start of methods + references |
-| `reviewer` (citations) | first 6k + last 6k chars | intro (context) + references section |
-| `reviewer` (others) | first 20k chars | covers abstract + methods + results for most papers |
+---
 
 Part of [p7dotorg](https://github.com/p7dotorg). · [redink.sh](https://redink.sh)
