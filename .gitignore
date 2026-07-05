@@ -27,3 +27,4 @@ eval/data/
 
 # DRL knowledge bundle (dev/test scans — real bundles committed intentionally)
 /bundle/
+__pycache__/
