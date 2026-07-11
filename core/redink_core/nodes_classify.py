@@ -76,11 +76,42 @@ def _drop_self_citations(result, paper: str) -> None:
     result.citations = kept
 
 
+_GITHUB_URL_RE = re.compile(r"https?://github\.com/[\w.-]+/[\w.-]+")
+
+
+def _repo_candidates_block(paper: str) -> str:
+    """Lista os repos GitHub do paper INTEIRO (o _classify_excerpt trunca o
+    meio, justo onde 'code available at github.com/...' costuma viver). Dá ao
+    LLM os candidatos + contexto pra ele escolher o repo OFICIAL do paper e
+    ignorar os citados como baselines/datasets de terceiros."""
+    seen: dict[str, str] = {}
+    for m in _GITHUB_URL_RE.finditer(paper):
+        url = m.group(0).rstrip(").,;")
+        if url not in seen:
+            s, e = max(0, m.start() - 90), min(len(paper), m.end() + 50)
+            seen[url] = re.sub(r"\s+", " ", paper[s:e]).strip()
+        if len(seen) >= 8:
+            break
+    if not seen:
+        return ""
+    lines = "\n".join(f"- {u}  (contexto: …{ctx}…)" for u, ctx in seen.items())
+    return (
+        "\n\nREPOSITÓRIOS GITHUB CITADOS NO PAPER — escolha para o campo "
+        "code_repo APENAS o repositório OFICIAL do paper (o que os autores "
+        "publicaram com o código DESTE trabalho). IGNORE repos citados como "
+        "baselines, alternativas ou datasets de terceiros. Se nenhum for o "
+        "oficial, deixe code_repo null:\n" + lines
+    )
+
+
 def classify(state, config: RunnableConfig = None):
     model = make_model("CLASSIFY_MODEL", "qwen/qwen3-8b", Classification, max_tokens=2000, config=config)
     result = model.invoke([
         SystemMessage(content=_CLASSIFY_SYSTEM),
-        HumanMessage(content=f"Classifique este paper:\n\n{_classify_excerpt(state['paper'])}"),
+        HumanMessage(content=(
+            f"Classifique este paper:\n\n{_classify_excerpt(state['paper'])}"
+            f"{_repo_candidates_block(state['paper'])}"
+        )),
     ])
     # Enforce in code what the prompt only asks for
     _drop_self_citations(result, state["paper"])
