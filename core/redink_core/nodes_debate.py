@@ -51,9 +51,14 @@ def _debate_one(finding: Finding, paper_excerpt: str, config) -> Rebuttal | None
 
 
 def debate(state, config: RunnableConfig = None):
-    """Dedup all findings, then put every critical through defender vs judge."""
-    findings = _dedup_findings(state["findings"], config)
-    criticals = [f for f in findings if f.severity == "critical"]
+    """Dedup all findings, then put every critical through defender vs judge.
+    Findings grounded (verificados por execução) bypassam dedup E debate — um
+    fato de execução não é argumentável nem clusterizável."""
+    all_findings = state["findings"]
+    grounded = [f for f in all_findings if f.grounded]
+    debatable = [f for f in all_findings if not f.grounded]
+    findings = _dedup_findings(debatable, config) + grounded
+    criticals = [f for f in findings if f.severity == "critical" and not f.grounded]
     if not criticals:
         return {"deduped_findings": findings}
 
